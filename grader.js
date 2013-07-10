@@ -6,6 +6,9 @@ and basic DOM parsing.
 
 References:
 
+ + restler
+   - https://github.com/danwrong/restler
+
  + cheerio
    - https://github.com/MatthewMueller/cheerio
    - http://encosia.com/cheerio-faster-windows-friendly-alternative-jsdom/
@@ -22,10 +25,46 @@ References:
 */
 
 var fs = require('fs');
+var util = require('util');
+var rest = require('restler');
 var program = require('commander');
 var cheerio = require('cheerio');
 var HTMLFILE_DEFAULT = "index.html";
+var TMPFILE_DEFAULT = "tmpfile.html";
+var URLPATH_DEFAULT = "http://shielded-fortress-7464.herokuapp.com/";
 var CHECKSFILE_DEFAULT = "checks.json";
+
+
+var buildfn = function(tmpwebfile) {
+    var response2console = function(result, response) {
+        if (result instanceof Error) {
+            console.error('Error: ' + util.format(response.message));
+        } else {
+            console.log("Wrote %s", tmpwebfile);
+            fs.writeFileSync(tmpwebfile, result);
+        }
+    };
+    return response2console;
+};
+
+var checkURL = function(url, tmpwebfile) {
+    tmpwebfile = tmpwebfile || TMPFILE_DEFAULT;
+    url = url || URLPATH_DEFAULT;
+    rest.get(url).on('complete', function(result) {
+        if (result instanceof Error) {
+            console.error('Error: ' + util.format(result.message));
+        } else {
+            console.log("Wrote %s", tmpwebfile);
+            fs.writeFileSync(tmpwebfile, result);
+            assertFileExists(tmpwebfile, result);
+            var checkJson = checkHtmlFile(tmpwebfile, program.checks);
+            var outJson = JSON.stringify(checkJson, null, 4);
+            console.log(outJson);
+        }});
+
+    //rest.get(url).on('complete', response2console);
+    //console.log('Retrieving %s and putting it in tmp file = %s', url, tmpwebfile);
+};
 
 var assertFileExists = function(infile) {
     var instr = infile.toString();
@@ -59,10 +98,17 @@ if(require.main == module) {
     program
         .option('-c, --checks ', 'Path to checks.json', assertFileExists, CHECKSFILE_DEFAULT)
         .option('-f, --file ', 'Path to index.html', assertFileExists, HTMLFILE_DEFAULT)
+        .option('-u, --url ', "Path to bitstarter website", toString, URLPATH_DEFAULT)
         .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+    if (program.file) { 
+      var checkJson = checkHtmlFile(program.file, program.checks);
+      console.log(outJson);
+    }
+    else { 
+        var tmpfile = 'tmphtml.html';
+        checkURL(program.url, tmpfile);
+
+       	}
 } else {
     exports.checkHtmlFile = checkHtmlFile;
 }
